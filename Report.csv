@@ -1,0 +1,12 @@
+Location,Problem type,Urgency,description,Timestamp,Matched Volunteer
+Bandra,Medical,critical,Person injured in road accident and needs immediate ambulance,2026-04-17T09:15:00Z,
+Colaba,Medical,critical,Heart attack suspected immediate help required,2026-04-17T14:05:00Z,
+Kurla,Flood,critical,Water logging severe at main station,2026-04-17T09:00:00Z,
+Kurla,Flood,critical,People trapped inside homes due to severe water logging,2026-04-17T11:45:00Z,
+Colaba,Flood,critical,Flooding at gateway,2026-04-17T14:14:31Z,
+Andheri,Fire,critical,Fire breakout in commercial building,2026-04-17T10:30:00Z,
+Andheri,Fire,critical,Small explosion heard near factory,2026-04-17T14:50:00Z,
+Borivali,Medical,medium,Elderly person feeling dizzy need checkup,2026-04-17T11:00:00Z,
+Dadar,Water Shortage,medium,No drinking water in residential complex for 2 days,2026-04-17T10:05:00Z,
+Dadar,Water Shortage,medium,Tankers requested for neighborhood,2026-04-17T15:30:00Z,
+Juhu,Food Shortage,low,Need food packets for stranded workers,2026-04-17T12:20:00Z,

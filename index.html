@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helping Hands - Premium Track & Match</title>
+    <!-- Modern Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for standard Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body class="dark-theme">
+    <div class="app-container">
+
+        <!-- TOP BAR -->
+        <header class="top-bar glass">
+            <div class="top-left">
+                <button id="menuToggle" class="icon-btn hover-float"><i class="fas fa-bars"></i></button>
+            </div>
+            <div class="top-middle">
+                <h1>Helping Hands</h1>
+            </div>
+            <div class="top-right">
+                <span id="dateTimeDisplay" class="datetime-text"></span>
+            </div>
+        </header>
+
+        <!-- NAVIGATION DRAWER (Hidden Left Menu) -->
+        <nav id="navDrawer" class="nav-drawer glass-dark">
+            <div class="drawer-header">Menu <i id="closeNavBtn" class="fas fa-times close-icon"></i></div>
+            <ul>
+                <li><a href="#" onclick="showView('dashboardView')"><i class="fas fa-chart-pie color-primary"></i>
+                        Dashboard Analytics</a></li>
+                <li><a href="#"><i class="fas fa-history color-secondary"></i> History</a></li>
+                <li><a href="#"><i class="fas fa-users color-green"></i> Volunteers</a></li>
+                <li><a href="#"><i class="fas fa-exclamation-triangle color-yellow"></i> Reported issues</a></li>
+                <li><a href="#"><i class="fas fa-cog color-text-muted"></i> Settings</a></li>
+            </ul>
+        </nav>
+
+        <div class="main-layout">
+
+            <!-- LEFT SIDEBAR -->
+            <aside class="sidebar left-sidebar glass">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-clock"></i> Pending Issues</h3>
+                    <ul id="pendingIssuesList" class="issue-list small-list">
+                        <!-- Dynamic issues will be loaded here -->
+                    </ul>
+                </div>
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-check-circle"></i> Past Resolved/Assigned</h3>
+                    <ul id="resolvedIssuesList" class="issue-list small-list text-muted">
+                        <li>
+                            <div class="dot green"></div> Extinguished Fire <span class="loc">(Sion)</span>
+                        </li>
+                        <li>
+                            <div class="dot green"></div> Rescued Animal <span class="loc">(Borivali)</span>
+                        </li>
+                        <li>
+                            <div class="dot green"></div> Supplied Water <span class="loc">(Thane)</span>
+                        </li>
+                        <li>
+                            <div class="dot green"></div> Medical transport <span class="loc">(Goregaon)</span>
+                        </li>
+                    </ul>
+                </div>
+                <!-- Contact Widget -->
+                <div class="contact-widget glass-card">
+                    <h4>Direct Contact</h4>
+                    <p class="text-sm text-muted">Reach out to our helpline directly</p>
+                    <div class="contact-links">
+                        <a href="#" class="contact-btn phone"><i class="fas fa-phone-alt"></i> Call</a>
+                        <a href="#" class="contact-btn wa"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- CENTER CONTENT AREA -->
+            <main class="content-area">
+
+                <!-- VIEW 1: DASHBOARD -->
+                <div id="dashboardView" class="view active fade-in">
+                    <h2 class="hero-title glow-text">How can we help?</h2>
+
+                    <div class="action-sections">
+                        <div class="action-card glass-card hover-lift">
+                            <p class="action-text">Facing an issue and need assistance?</p>
+                            <button id="btnReportIssue" class="btn primary-btn pulse-glow">Report issue</button>
+                        </div>
+                        <div class="action-card glass-card hover-lift">
+                            <p class="action-text">Want to help people in need?<br>Then register here to be volunteer
+                            </p>
+                            <button id="btnBecomeVolunteer" class="btn secondary-btn hover-float">Become
+                                Volunteer</button>
+                        </div>
+                    </div>
+
+                    <div class="map-video-container glass-card" style="padding: 0; position: relative;">
+                        <div id="map"
+                            style="width: 100%; height: 100%; border-radius: var(--border-radius); z-index: 1;"></div>
+                        <div class="map-overlay" style="z-index: 400; pointer-events: none;">LIVE TRACKING</div>
+                    </div>
+                </div>
+
+                <!-- VIEW 2: REPORT ISSUE -->
+                <div id="reportIssueView" class="view hidden fade-in">
+                    <div class="form-container glass-card centered-form">
+                        <button class="icon-btn undo-arrow" onclick="showView('dashboardView')"
+                            title="Return to Dashboard"><i class="fas fa-undo-alt"></i></button>
+                        <h2 class="form-title">Report Issue</h2>
+                        <form id="reportIssueForm">
+                            <div class="form-group">
+                                <label><i class="fas fa-map-marker-alt"></i> Location</label>
+                                <select id="issueLocation" required>
+                                    <option value="" disabled selected>Select location in Mumbai</option>
+                                    <option value="Andheri">Andheri</option>
+                                    <option value="Bandra">Bandra</option>
+                                    <option value="Borivali">Borivali</option>
+                                    <option value="Dadar">Dadar</option>
+                                    <option value="Colaba">Colaba</option>
+                                    <option value="Juhu">Juhu</option>
+                                    <option value="Kandivali">Kandivali</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-clipboard-list"></i> Problem type</label>
+                                <input type="text" id="issueProblemType"
+                                    placeholder="e.g., Medical emergency, Fire, Flood" required>
+                            </div>
+                            <div class="form-group urgency-group">
+                                <label><i class="fas fa-exclamation-circle"></i> Urgency</label>
+                                <div class="radio-options">
+                                    <label class="urgency-label"><input type="radio" name="urgency" value="critical"
+                                            required> <span class="emoji">🔴</span> Critical</label>
+                                    <label class="urgency-label"><input type="radio" name="urgency" value="medium">
+                                        <span class="emoji">🟡</span> Medium</label>
+                                    <label class="urgency-label"><input type="radio" name="urgency" value="low"> <span
+                                            class="emoji">🟢</span> Low</label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-align-left"></i> Description</label>
+                                <textarea id="issueDescription" rows="3"
+                                    placeholder="Provide details about the problem so volunteers can prepare..."
+                                    required></textarea>
+                            </div>
+                            <button type="submit" class="btn primary-btn submit-btn w-100 mt-2">Submit Issue <i
+                                    class="fas fa-arrow-right"></i></button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- VIEW 3: REGISTER VOLUNTEER -->
+                <div id="registerVolunteerView" class="view hidden fade-in">
+                    <div class="form-container glass-card centered-form">
+                        <button class="icon-btn undo-arrow" onclick="showView('dashboardView')"
+                            title="Return to Dashboard"><i class="fas fa-undo-alt"></i></button>
+                        <h2 class="form-title">Register for Volunteering</h2>
+                        <form id="volunteerForm">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input type="text" id="volName" placeholder="Your full name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Core Skills</label>
+                                <input type="text" id="volSkills" placeholder="e.g., First Aid, Rescue, Logistics"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label>Base Location</label>
+                                <select id="volLocation" required>
+                                    <option value="" disabled selected>Your primary location in Mumbai</option>
+                                    <option value="Andheri">Andheri</option>
+                                    <option value="Bandra">Bandra</option>
+                                    <option value="Borivali">Borivali</option>
+                                    <option value="Dadar">Dadar</option>
+                                    <option value="Colaba">Colaba</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Availability</label>
+                                <input type="text" id="volAvailability" placeholder="e.g., Weekends, Evening hours"
+                                    required>
+                            </div>
+                            <button type="submit" class="btn secondary-btn submit-btn w-100 mt-2">Complete
+                                Registration</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- VIEW 4: VOLUNTEER MATCHING -->
+                <div id="matchingView" class="view hidden fade-in">
+                    <div class="matching-container glass-card centered-form">
+                        <h2 class="form-title text-center">Finding Matching Volunteers</h2>
+                        <div class="priority-badge mb-4"><span class="emoji pulse-sm">🔴</span> Processing High Priority
+                            Match based on algorithm</div>
+
+                        <div id="matchedVolunteerContainer" class="volunteer-list">
+                            <!-- Injected dynamically by main.js -->
+                        </div>
+
+                        <div class="progress-container mt-4">
+                            <div class="progress-labels">
+                                <span id="progressMessage">Auto-assigning nearest capable volunteer...</span>
+                                <span id="progressText" class="font-bold">0%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div id="assignProgressBar" class="progress-fill"></div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button id="btnReturnHome" class="btn outline-btn hidden"
+                                onclick="showView('dashboardView')">Return to Dashboard</button>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+
+            <!-- RIGHT SIDEBAR -->
+            <aside class="sidebar right-sidebar glass">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-chart-bar"></i> Overview</h3>
+                    <ul class="status-summary">
+                        <li class="status-item">
+                            <div class="status-icon"><i class="fas fa-circle color-red small-icon"></i></div>
+                            <div class="status-text">Critical Issues</div>
+                            <span id="countCritical" class="count red-bg">8</span>
+                        </li>
+                        <li class="status-item">
+                            <div class="status-icon"><i class="fas fa-circle color-yellow small-icon"></i></div>
+                            <div class="status-text">Medium</div>
+                            <span id="countMedium" class="count yellow-bg">10</span>
+                        </li>
+                        <li class="status-item">
+                            <div class="status-icon"><i class="fas fa-circle color-green small-icon"></i></div>
+                            <div class="status-text">Low</div>
+                            <span id="countLow" class="count green-bg">5</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="sidebar-section divider-top ai-summary-section">
+                    <h3><i class="fas fa-robot text-blue pulse-low"></i> AI Summary</h3>
+                    <p class="text-xs text-muted mt-1">Get an instant overview of all issues</p>
+                    <button id="btnAiSummary" class="btn outline-btn w-100 mt-2 hover-float"
+                        style="border-color: var(--color-blue); color: var(--color-blue);">
+                        <i class="fas fa-magic"></i> Generate Insight
+                    </button>
+                </div>
+
+                <div class="sidebar-section divider-top">
+                    <h3><i class="fas fa-satellite-dish pulse-low"></i> Live issue feed</h3>
+                    <div class="feed-scrollable list-fade-out">
+                        <div class="feed-item flash-red glass-row">
+                            <i class="fas fa-ambulance text-red text-sm"></i>
+                            <div>Medical emergency<br><span class="feed-loc">Andheri</span></div>
+                        </div>
+                        <div class="feed-item flash-yellow glass-row">
+                            <i class="fas fa-hamburger text-yellow text-sm"></i>
+                            <div>Food shortage<br><span class="feed-loc">Bandra</span></div>
+                        </div>
+                        <div class="feed-item glass-row">
+                            <i class="fas fa-tint text-blue text-sm"></i>
+                            <div>Water block<br><span class="feed-loc">Dadar</span></div>
+                        </div>
+                        <div class="feed-item flash-red glass-row">
+                            <i class="fas fa-fire text-red text-sm"></i>
+                            <div>Fire hazard<br><span class="feed-loc">Borivali</span></div>
+                        </div>
+                        <div class="feed-item glass-row">
+                            <i class="fas fa-paw text-muted text-sm"></i>
+                            <div>Stranded animal<br><span class="feed-loc">Colaba</span></div>
+                        </div>
+                        <div class="feed-item flash-yellow glass-row">
+                            <i class="fas fa-briefcase-medical text-yellow text-sm"></i>
+                            <div>Medicine req<br><span class="feed-loc">Juhu</span></div>
+                        </div>
+                        <div class="feed-item flash-red glass-row">
+                            <i class="fas fa-car-crash text-red text-sm"></i>
+                            <div>Accident<br><span class="feed-loc">Sion</span></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </div>
+
+    <!-- Toast Container for Custom Popups -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- AI Summary Modal -->
+    <div id="aiSummaryModal" class="modal hidden fade-in">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3><i class="fas fa-sparkles color-blue pulse-low"></i> Gemini Insight</h3>
+                <button id="closeAiModalBtn" class="icon-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="aiSummaryContent" class="ai-content text-sm mt-3">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Modal -->
+    <div id="aiValidationModal" class="modal hidden fade-in">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3><i class="fas fa-robot color-blue pulse-low"></i> AI Validator Suggestion</h3>
+                <button id="closeValidationModalBtn" class="icon-btn"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="aiValidationContent" class="ai-content text-sm mt-3">
+                <!-- Injected via JS -->
+            </div>
+            <div class="action-buttons mt-4" style="display: flex; gap: 10px;">
+                <button id="btnKeepInput" class="btn outline-btn w-50">Keep My Input</button>
+                <button id="btnTakeSuggestion" class="btn primary-btn w-50" style="background: var(--color-blue)">Take
+                    Suggestion</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script loaded at the end for performance -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
