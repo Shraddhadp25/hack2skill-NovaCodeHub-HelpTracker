@@ -242,7 +242,7 @@ Format your response exactly like this:
 4. [Your answer here]
 """
     # Try multiple models until one works to avoid 404 errors during demo
-    models_to_try = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
+    models_to_try = ['gemini-3-flash-preview', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
     
     for model_name in models_to_try:
         try:
@@ -298,7 +298,7 @@ def validate_issue():
     }}
     """
     # Try multiple models until one works to avoid 404 errors during demo
-    models_to_try = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
+    models_to_try = ['gemini-3-flash-preview', 'gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
     
     for model_name in models_to_try:
         try:
