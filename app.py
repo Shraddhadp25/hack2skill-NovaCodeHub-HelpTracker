@@ -79,6 +79,8 @@ def match_volunteer(issue_location, problem_type):
     issue_loc_clean = issue_location.strip().lower()
     pt_clean = clean_problem_type(problem_type)
     
+    print(f"DEBUG: Matching for Loc: {issue_loc_clean}, Problem: {pt_clean}")
+    
     needed_skills = []
     for k, v in SKILLS_MAP.items():
         if k in pt_clean:
@@ -87,29 +89,46 @@ def match_volunteer(issue_location, problem_type):
     if not needed_skills:
         needed_skills = ['logistics', 'rescue']
         
+    print(f"DEBUG: Needed skills identified: {needed_skills}")
+        
     # Query only available volunteers
     available_vols = Volunteer.query.filter_by(current_availability='yes').all()
+    print(f"DEBUG: Total available volunteers found in DB: {len(available_vols)}")
     
     valid_vols = []
     for v in available_vols:
-        vol_skills = [s.strip().lower() for s in (v.skills or "").split('|')]
-        if any(skill in vol_skills for skill in needed_skills) or any(req in " ".join(vol_skills) for req in needed_skills):
+        # Broad checks: check if any skill words appear in the volunteer's skill list
+        vol_skills_full = (v.skills or "").lower()
+        vol_skills_list = [s.strip().lower() for s in vol_skills_full.split('|')]
+        
+        has_skill = False
+        for skill in needed_skills:
+            if skill in vol_skills_full or any(skill in s for s in vol_skills_list):
+                has_skill = True
+                break
+        
+        if has_skill:
             valid_vols.append(v)
                 
+    print(f"DEBUG: Volunteers with matching skills: {len(valid_vols)}")
     if not valid_vols:
         return None
         
     # 1. Check exact location match
     for v in valid_vols:
         if (v.location or "").strip().lower() == issue_loc_clean:
+            print(f"DEBUG: Exact location match found: {v.name}")
             return {'name': v.name, 'location': v.location}
             
     # 2. Check nearby location match
     nearby_locs = MUMBAI_ADJACENCY.get(issue_loc_clean, [])
+    print(f"DEBUG: Checking nearby locations for {issue_loc_clean}: {nearby_locs}")
     for v in valid_vols:
         if (v.location or "").strip().lower() in nearby_locs:
+            print(f"DEBUG: Nearby location match found: {v.name} at {v.location}")
             return {'name': v.name, 'location': v.location}
             
+    print("DEBUG: No location match found.")
     return None
 
 # --- API Endpoints ---
@@ -160,21 +179,20 @@ def report_issue():
 
 @app.route('/api/get_reports', methods=['GET'])
 def get_reports():
-    # Fetch and sort by urgency manually (or via SQL)
+    # Fetch all reports
     reports = Report.query.all()
     
-    # Simple priority sort for delivery
-    urgency_map = {'critical': 0, 'medium': 1, 'low': 2}
-    sorted_reports = sorted(reports, key=lambda r: urgency_map.get(r.urgency.lower(), 3))
-
     result = []
-    for r in sorted_reports:
+    for r in reports:
+        # Check if matched_volunteer has a real name (not just an empty string)
+        has_volunteer = r.matched_volunteer and len(r.matched_volunteer.strip()) > 0
+        
         result.append({
             'location': r.location,
             'problem_type': r.problem_type,
             'urgency': r.urgency,
             'timestamp': r.timestamp,
-            'matched_volunteer': {'name': r.matched_volunteer} if r.matched_volunteer else None
+            'matched_volunteer': {'name': r.matched_volunteer} if has_volunteer else None
         })
     return jsonify(result), 200
 
@@ -260,41 +278,59 @@ def validate_issue():
     except Exception as e:
         return jsonify({"isValid": True}), 200
 
-# --- DATA SEEDING (One-time transfer from CSV to DB) ---
+# --- DATA SEEDING (Robust transfer for Render) ---
 def seed_data():
     with app.app_context():
-        # Seed Volunteers
-        vol_csv = 'Volunteer.csv'
-        if Volunteer.query.count() == 0 and os.path.exists(vol_csv):
-            print(f"Seeding volunteers from {vol_csv}...")
-            with open(vol_csv, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    db.session.add(Volunteer(
-                        name=row.get('Name'),
-                        skills=row.get('Skills'),
-                        location=row.get('Location'),
-                        availability=row.get('Availability'),
-                        current_availability=row.get('Current Availability', 'yes')
-                    ))
-            db.session.commit()
+        # Check if we need to seed
+        v_count = Volunteer.query.count()
+        r_count = Report.query.count()
         
-        # Seed Reports
-        rep_csv = 'Report.csv'
-        if Report.query.count() == 0 and os.path.exists(rep_csv):
-            print(f"Seeding reports from {rep_csv}...")
-            with open(rep_csv, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    db.session.add(Report(
-                        location=row.get('Location'),
-                        problem_type=row.get('Problem type'),
-                        urgency=row.get('Urgency'),
-                        description=row.get('description'),
-                        timestamp=row.get('Timestamp'),
-                        matched_volunteer=row.get('Matched Volunteer')
-                    ))
-            db.session.commit()
+        print(f"DEBUG: Current DB Status - Volunteers: {v_count}, Reports: {r_count}")
+        
+        if v_count == 0:
+            vol_csv = 'Volunteer.csv'
+            if os.path.exists(vol_csv):
+                print(f"DEBUG: Seeding volunteers from {vol_csv}...")
+                with open(vol_csv, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        db.session.add(Volunteer(
+                            name=row.get('Name'),
+                            skills=row.get('Skills'),
+                            location=row.get('Location'),
+                            availability=row.get('Availability'),
+                            current_availability='yes' # Force 'yes' for fresh seed
+                        ))
+                db.session.commit()
+                print("DEBUG: Volunteer seeding complete.")
+        
+        if r_count == 0:
+            rep_csv = 'Report.csv'
+            if os.path.exists(rep_csv):
+                print(f"DEBUG: Seeding reports from {rep_csv}...")
+                with open(rep_csv, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        db.session.add(Report(
+                            location=row.get('Location'),
+                            problem_type=row.get('Problem type'),
+                            urgency=row.get('Urgency'),
+                            description=row.get('description'),
+                            timestamp=row.get('Timestamp'),
+                            matched_volunteer=row.get('Matched Volunteer', '')
+                        ))
+                db.session.commit()
+                print("DEBUG: Report seeding complete.")
+
+@app.route('/api/debug_db')
+def debug_db():
+    v_count = Volunteer.query.count()
+    r_count = Report.query.count()
+    return jsonify({
+        'volunteers': v_count,
+        'reports': r_count,
+        'database_url_exists': bool(os.environ.get("DATABASE_URL"))
+    })
 
 if __name__ == '__main__':
     seed_data()
