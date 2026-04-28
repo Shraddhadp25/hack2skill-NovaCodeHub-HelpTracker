@@ -1,24 +1,54 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import csv
+from flask_sqlalchemy import SQLAlchemy
 import os
 from collections import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
 from google import genai
 import json
+import csv
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-@app.route('/')
-def index():
-    return app.send_static_file('index.html')
+# Database Setup
+# Use DATABASE_URL from Render, otherwise use local SQLite
+database_url = os.environ.get("DATABASE_URL")
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-REPORT_FILE = 'Report.csv'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///helping_hands.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+db = SQLAlchemy(app)
+
+# --- Database Models ---
+
+class Volunteer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    skills = db.Column(db.String(500)) # Stored as pipe-separated string
+    location = db.Column(db.String(100))
+    availability = db.Column(db.String(100))
+    current_availability = db.Column(db.String(10), default='yes')
+
+class Report(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    location = db.Column(db.String(100))
+    problem_type = db.Column(db.String(100))
+    urgency = db.Column(db.String(20))
+    description = db.Column(db.Text)
+    timestamp = db.Column(db.String(50))
+    matched_volunteer = db.Column(db.String(100))
+
+# Create tables
+with app.app_context():
+    db.create_all()
+
+# Logic Constants
 SKILLS_MAP = {
     'medical': ['first aid', 'nurse', 'doctor', 'cpr', 'medical doctor', 'medical nurse'],
     'fire': ['rescue', 'firefighting'],
@@ -40,10 +70,12 @@ MUMBAI_ADJACENCY = {
     'sion': ['kurla', 'dadar']
 }
 
+# --- Helper Logic ---
+
+def clean_problem_type(pt):
+    return pt.strip().lower() if pt else ""
+
 def match_volunteer(issue_location, problem_type):
-    if not os.path.exists('Volunteer.csv'):
-        return None
-        
     issue_loc_clean = issue_location.strip().lower()
     pt_clean = clean_problem_type(problem_type)
     
@@ -52,172 +84,44 @@ def match_volunteer(issue_location, problem_type):
         if k in pt_clean:
             needed_skills.extend(v)
     
-    # default skills if none mapped directly
     if not needed_skills:
         needed_skills = ['logistics', 'rescue']
         
-    with open('Volunteer.csv', 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        volunteers = list(reader)
-        
-    # filter by availability and skills
-    available_vols = []
-    for v in volunteers:
-        # Check new "Current Availability" column
-        if v.get('Current Availability', '').strip().lower() == 'yes':
-            vol_skills = [s.strip().lower() for s in v.get('Skills', '').split('|')]
-            # check skill intersection
-            if any(skill in vol_skills for skill in needed_skills) or any(req in " ".join(vol_skills) for req in needed_skills):
-                available_vols.append(v)
+    # Query only available volunteers
+    available_vols = Volunteer.query.filter_by(current_availability='yes').all()
+    
+    valid_vols = []
+    for v in available_vols:
+        vol_skills = [s.strip().lower() for s in (v.skills or "").split('|')]
+        if any(skill in vol_skills for skill in needed_skills) or any(req in " ".join(vol_skills) for req in needed_skills):
+            valid_vols.append(v)
                 
-    if not available_vols:
+    if not valid_vols:
         return None
         
-    # check exact location match
-    for v in available_vols:
-        if v.get('Location', '').strip().lower() == issue_loc_clean:
-            return {'name': v.get('Name'), 'location': v.get('Location')}
+    # 1. Check exact location match
+    for v in valid_vols:
+        if (v.location or "").strip().lower() == issue_loc_clean:
+            return {'name': v.name, 'location': v.location}
             
-    # check nearby location match
+    # 2. Check nearby location match
     nearby_locs = MUMBAI_ADJACENCY.get(issue_loc_clean, [])
-    for v in available_vols:
-        if v.get('Location', '').strip().lower() in nearby_locs:
-            return {'name': v.get('Name'), 'location': v.get('Location')}
+    for v in valid_vols:
+        if (v.location or "").strip().lower() in nearby_locs:
+            return {'name': v.name, 'location': v.location}
             
     return None
 
-def clean_problem_type(pt):
-    # For normalization, ignore case and leading/trailing whitespace
-    return pt.strip().lower()
+# --- API Endpoints ---
 
-def is_medical(pt):
-    pt_clean = clean_problem_type(pt)
-    return 'medical' in pt_clean
-
-def sort_reports():
-    if not os.path.exists(REPORT_FILE):
-        return
-
-    # Read rows
-    with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
-        rows = list(reader)
-
-    if not rows:
-        return
-
-    # Group by urgency
-    urgency_groups = {
-        'critical': [],
-        'medium': [],
-        'low': []
-    }
-    
-    # Catch any unexpected urgency values and default them to 'low'
-    for row in rows:
-        urg = row.get('Urgency', '').strip().lower()
-        if urg in urgency_groups:
-            urgency_groups[urg].append(row)
-        else:
-            urgency_groups['low'].append(row)
-
-    sorted_rows = []
-
-    # Desired order of processing urgencies
-    for urgency in ['critical', 'medium', 'low']:
-        group_rows = urgency_groups[urgency]
-        if not group_rows:
-            continue
-
-        # Frequency of problem type
-        pt_counts = defaultdict(int)
-        for r in group_rows:
-            pt = clean_problem_type(r.get('Problem type', ''))
-            pt_counts[pt] += 1
-            
-        # Group rows by problem type
-        rows_by_pt = defaultdict(list)
-        for r in group_rows:
-            pt = clean_problem_type(r.get('Problem type', ''))
-            rows_by_pt[pt].append(r)
-
-        # Sort problem types based on rules:
-        # 1. Is medical? (True first)
-        # 2. Count (Descending)
-        sorted_pts = sorted(rows_by_pt.keys(), key=lambda pt: (not is_medical(pt), -pt_counts[pt]))
-
-        for pt in sorted_pts:
-            pt_rows = rows_by_pt[pt]
-            
-            # Now sort within this problem type by location frequency
-            loc_counts = defaultdict(int)
-            for r in pt_rows:
-                loc = r.get('Location', '').strip().lower()
-                loc_counts[loc] += 1
-            
-            # Sort the specific rows by their location's frequency (descending)
-            pt_rows.sort(key=lambda r: -loc_counts[r.get('Location', '').strip().lower()])
-            
-            sorted_rows.extend(pt_rows)
-
-    # Write back to CSV
-    with open(REPORT_FILE, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(sorted_rows)
-
-def ensure_report_schema():
-    if not os.path.exists(REPORT_FILE):
-        return
-    with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        try:
-            headers = next(reader)
-        except StopIteration:
-            return
-            
-    if 'Matched Volunteer' not in headers:
-        headers.append('Matched Volunteer')
-        with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        with open(REPORT_FILE, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=headers)
-            writer.writeheader()
-            for row in rows:
-                row['Matched Volunteer'] = ''
-                writer.writerow(row)
-
-def update_volunteer_availability(name, status):
-    vol_file = 'Volunteer.csv'
-    if not os.path.exists(vol_file):
-        return
-        
-    with open(vol_file, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames
-        volunteers = list(reader)
-        
-    updated = False
-    for v in volunteers:
-        if v.get('Name') == name:
-            v['Current Availability'] = status
-            updated = True
-            break
-            
-    if updated:
-        with open(vol_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(volunteers)
+@app.route('/')
+def index():
+    return app.send_static_file('index.html')
 
 @app.route('/api/report_issue', methods=['POST'])
 def report_issue():
     data = request.json
-    
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
+    if not data: return jsonify({'error': 'No data'}), 400
         
     location = data.get('location', '')
     problem_type = data.get('problem_type', '')
@@ -225,70 +129,82 @@ def report_issue():
     description = data.get('description', '')
     timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
     
-    # Match Volunteer First
-    matched_volunteer = match_volunteer(location, problem_type)
-    vol_name = matched_volunteer['name'] if matched_volunteer else ""
+    # Match Volunteer
+    matched = match_volunteer(location, problem_type)
+    vol_name = matched['name'] if matched else ""
 
-    ensure_report_schema()
+    # Save to DB
+    new_report = Report(
+        location=location,
+        problem_type=problem_type,
+        urgency=urgency,
+        description=description,
+        timestamp=timestamp,
+        matched_volunteer=vol_name
+    )
+    db.session.add(new_report)
     
-    file_exists = os.path.isfile(REPORT_FILE)
+    # Update volunteer if matched
+    if matched:
+        vol = Volunteer.query.filter_by(name=vol_name).first()
+        if vol:
+            vol.current_availability = 'no'
     
-    if file_exists:
-        with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            try:
-                fieldnames = next(reader)
-            except StopIteration:
-                fieldnames = ['Location', 'Problem type', 'Urgency', 'description', 'Timestamp', 'Matched Volunteer']
-    else:
-        fieldnames = ['Location', 'Problem type', 'Urgency', 'description', 'Timestamp', 'Matched Volunteer']
-    
-    # Append to CSV
-    with open(REPORT_FILE, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
-            
-        writer.writerow({
-            'Location': location,
-            'Problem type': problem_type,
-            'Urgency': urgency,
-            'description': description,
-            'Timestamp': timestamp,
-            'Matched Volunteer': vol_name
-        })
-        
-    # Apply sorting logic
-    sort_reports()
-    
-    if matched_volunteer:
-        update_volunteer_availability(vol_name, 'no')
+    db.session.commit()
     
     return jsonify({
         'status': 'success', 
         'message': 'Issue reported and processed successfully.',
-        'matched_volunteer': matched_volunteer
+        'matched_volunteer': matched
     }), 200
+
+@app.route('/api/get_reports', methods=['GET'])
+def get_reports():
+    # Fetch and sort by urgency manually (or via SQL)
+    reports = Report.query.all()
+    
+    # Simple priority sort for delivery
+    urgency_map = {'critical': 0, 'medium': 1, 'low': 2}
+    sorted_reports = sorted(reports, key=lambda r: urgency_map.get(r.urgency.lower(), 3))
+
+    result = []
+    for r in sorted_reports:
+        result.append({
+            'location': r.location,
+            'problem_type': r.problem_type,
+            'urgency': r.urgency,
+            'timestamp': r.timestamp,
+            'matched_volunteer': {'name': r.matched_volunteer} if r.matched_volunteer else None
+        })
+    return jsonify(result), 200
+
+@app.route('/api/register_volunteer', methods=['POST'])
+def register_volunteer():
+    data = request.json
+    if not data: return jsonify({'error': 'No data'}), 400
+        
+    new_v = Volunteer(
+        name=data.get('name', ''),
+        skills=data.get('skills', ''),
+        location=data.get('location', ''),
+        availability=data.get('availability', ''),
+        current_availability='yes'
+    )
+    db.session.add(new_v)
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Volunteer registered successfully.'}), 200
 
 @app.route('/api/ai_summary', methods=['GET'])
 def ai_summary():
     api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key or api_key == "YOUR_API_KEY_HERE":
-        return jsonify({'error': 'Google Gemini API Key not configured. Please set GEMINI_API_KEY in backend .env file.'}), 500
+    if not api_key: return jsonify({'error': 'No API Key'}), 500
 
-    if not os.path.exists(REPORT_FILE):
-        return jsonify({'error': 'No reports available to summarize.'}), 404
-
-    with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-        
-    if not rows:
-        return jsonify({'error': 'No reports available to summarize.'}), 404
+    reports = Report.query.all()
+    if not reports: return jsonify({'error': 'No reports'}), 404
 
     report_data = []
-    for r in rows:
-        report_data.append(f"Location: {r.get('Location', '')}, Issue: {r.get('Problem type', '')}, Urgency: {r.get('Urgency', '')}, Description: {r.get('description', '')}")
+    for r in reports:
+        report_data.append(f"Location: {r.location}, Issue: {r.problem_type}, Urgency: {r.urgency}, Description: {r.description}")
     
     report_text = "\n".join(report_data)
 
@@ -333,99 +249,54 @@ def validate_issue():
     Urgency selected: "{urgency}"
 
     Validate if the Problem Type and Urgency match the severity and nature of the description. 
-    If they are reasonably accurate, return a JSON object with "isValid": true.
-    If there is a clear mismatch (e.g. description is about a papercut but urgency is critical, or description is about a raging fire but problem type is water shortage), return "isValid": false, along with a suggested "problem_type" and "urgency", and a short "reason".
-    Respond with ONLY a strict JSON object, no markdown formatting, no code blocks that contain ```json
-    Example mismatch response: {{"isValid": false, "suggestion": {{"problem_type": "Fire", "urgency": "critical"}}, "reason": "The description mentions a raging fire, which is a critical fire emergency."}}
-    Example valid response: {{"isValid": true}}
+    Respond with ONLY a strict JSON object (isValid, suggestion, reason).
     """
-    
     try:
         client = genai.Client()
-        response = client.models.generate_content(
-            model='gemini-flash-latest',
-            contents=prompt,
-        )
-        
-        # Parse result safely
+        response = client.models.generate_content(model='gemini-flash-latest', contents=prompt)
         content = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(content)
         return jsonify(result), 200
     except Exception as e:
-        print(f"Validation error: {e}")
-        return jsonify({"isValid": True, "note": "Validation skipped due to AI error"}), 200
+        return jsonify({"isValid": True}), 200
 
-@app.route('/api/register_volunteer', methods=['POST'])
-def register_volunteer():
-    data = request.json
-    
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
+# --- DATA SEEDING (One-time transfer from CSV to DB) ---
+def seed_data():
+    with app.app_context():
+        # Seed Volunteers
+        vol_csv = 'Volunteer.csv'
+        if Volunteer.query.count() == 0 and os.path.exists(vol_csv):
+            print(f"Seeding volunteers from {vol_csv}...")
+            with open(vol_csv, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    db.session.add(Volunteer(
+                        name=row.get('Name'),
+                        skills=row.get('Skills'),
+                        location=row.get('Location'),
+                        availability=row.get('Availability'),
+                        current_availability=row.get('Current Availability', 'yes')
+                    ))
+            db.session.commit()
         
-    name = data.get('name', '')
-    skills = data.get('skills', '')
-    location = data.get('location', '')
-    availability = data.get('availability', '')
-    
-    if not name or not skills or not location or not availability:
-        return jsonify({'error': 'Missing required fields'}), 400
-        
-    file_exists = os.path.isfile('Volunteer.csv')
-    
-    try:
-        with open('Volunteer.csv', 'a', newline='', encoding='utf-8') as f:
-            fieldnames = ['Name', 'Skills', 'Location', 'Availability', 'Current Availability']
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if not file_exists:
-                writer.writeheader()
-                
-            writer.writerow({
-                'Name': name,
-                'Skills': skills,
-                'Location': location,
-                'Availability': availability,
-                'Current Availability': 'yes'
-            })
-            
-        return jsonify({
-            'status': 'success', 
-            'message': 'Volunteer registered successfully.'
-        }), 200
-    except Exception as e:
-        return jsonify({'error': f"Failed to save volunteer: {str(e)}"}), 500
-
-@app.route('/api/get_reports', methods=['GET'])
-def get_reports():
-    if not os.path.exists(REPORT_FILE):
-        return jsonify([])
-        
-    try:
-        with open(REPORT_FILE, 'r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            reports = list(reader)
-            
-        result = []
-        for r in reports:
-            loc = r.get('Location', '')
-            pt = r.get('Problem type', '')
-            urgency = r.get('Urgency', '')
-            timestamp = r.get('Timestamp', '')
-            vol_name = r.get('Matched Volunteer', '')
-            
-            mv = {'name': vol_name} if vol_name else None
-            
-            result.append({
-                'location': loc,
-                'problem_type': pt,
-                'urgency': urgency,
-                'timestamp': timestamp,
-                'matched_volunteer': mv
-            })
-            
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Seed Reports
+        rep_csv = 'Report.csv'
+        if Report.query.count() == 0 and os.path.exists(rep_csv):
+            print(f"Seeding reports from {rep_csv}...")
+            with open(rep_csv, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    db.session.add(Report(
+                        location=row.get('Location'),
+                        problem_type=row.get('Problem type'),
+                        urgency=row.get('Urgency'),
+                        description=row.get('description'),
+                        timestamp=row.get('Timestamp'),
+                        matched_volunteer=row.get('Matched Volunteer')
+                    ))
+            db.session.commit()
 
 if __name__ == '__main__':
+    seed_data()
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
