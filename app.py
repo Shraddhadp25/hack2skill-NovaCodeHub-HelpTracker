@@ -260,26 +260,27 @@ def validate_issue():
     description = data.get('description', '')
 
     prompt = f"""
-    You are an AI assistant helping to triage emergency reports.
-    A user has reported an issue.
-    Description: "{description}"
-    Problem Type selected: "{problem_type}"
-    Urgency selected: "{urgency}"
-
-    Validate if the Problem Type and Urgency match the severity and nature of the description. 
-    - If the user's description clearly matches a DIFFERENT problem type than the one they selected, you MUST set "isValid" to false and suggest the correct one.
-    - If the user's description indicates a life-threatening or immediate emergency but they selected "Low" or "Medium" urgency, you MUST set "isValid" to false and suggest "Critical".
-    - Similarly, if the description is minor but they selected "Critical", suggest a lower urgency level.
+    SYSTEM INSTRUCTION: You are a strict triage critic. 
+    A user has submitted an emergency report. Your job is to find ANY mismatches between the text description and the categories they selected.
     
-    Respond with ONLY a strict JSON object in this format:
-    {
+    User Description: "{description}"
+    User Selected Category: "{problem_type}"
+    User Selected Urgency: "{urgency}"
+
+    CRITICAL RULES:
+    1. If the description implies an urgency that is HIGHER or LOWER than what they selected, you must set "isValid": false.
+    2. If the problem type (e.g., medical, fire, flood) does not exactly match the description, you must set "isValid": false.
+    3. Be Very Strict. If in doubt, suggest a better category/urgency.
+
+    Respond ONLY with a JSON object:
+    {{
       "isValid": boolean,
-      "suggestion": {
-        "problem_type": "string (medical/fire/flood/water/food/other)",
-        "urgency": "string (critical/medium/low)"
-      },
-      "reason": "Explain precisely why you are suggesting a change or why the original is correct."
-    }
+      "suggestion": {{
+        "problem_type": "string",
+        "urgency": "string"
+      }},
+      "reason": "precise explanation"
+    }}
     """
     try:
         client = genai.Client()
@@ -288,6 +289,7 @@ def validate_issue():
             contents=prompt,
             config={'response_mime_type': 'application/json'}
         )
+        print(f"DEBUG AI RESPONSE: {response.text}")
         result = json.loads(response.text)
         return jsonify(result), 200
     except Exception as e:
