@@ -89,8 +89,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!valRes.ok) throw new Error("Validation request failed");
                 const validationResult = await valRes.json();
+                console.log("AI Validation Result:", validationResult);
 
-                if (validationResult.isValid === false) {
+                // Robust check for different possible naming conventions from AI
+                const isNotValid = 
+                    validationResult.isValid === false || validationResult.isValid === "false" ||
+                    validationResult.is_valid === false || validationResult.is_valid === "false" ||
+                    validationResult.valid === false || validationResult.valid === "false";
+
+                if (isNotValid) {
                     const modal = document.getElementById('aiValidationModal');
                     const content = document.getElementById('aiValidationContent');
 

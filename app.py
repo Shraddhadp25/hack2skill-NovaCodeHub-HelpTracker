@@ -254,6 +254,9 @@ Format your response exactly like this:
 
 @app.route('/api/validate_issue', methods=['POST'])
 def validate_issue():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key: return jsonify({'error': 'No API Key'}), 500
+    
     data = request.json
     problem_type = data.get('problem_type', '')
     urgency = data.get('urgency', '')
