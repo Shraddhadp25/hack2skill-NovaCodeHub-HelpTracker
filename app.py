@@ -391,7 +391,11 @@ def reset_db():
         for v in volunteers:
             v.current_availability = 'yes'
         db.session.commit()
-        return "Database Reset! All reports cleared and volunteers are now available."
+        
+        # Re-seed from CSV
+        seed_data()
+        
+        return "Database Reset! All reports cleared (re-seeded from CSV) and volunteers are now available."
     except Exception as e:
         return f"Error resetting database: {str(e)}"
 

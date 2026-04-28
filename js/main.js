@@ -332,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/get_reports');
             if (!res.ok) return;
             const reports = await res.json();
+            console.log("Fetched reports from DB:", reports);
 
             const pendingList = document.getElementById('pendingIssuesList');
             const resolvedList = document.getElementById('resolvedIssuesList');
