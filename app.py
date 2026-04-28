@@ -395,6 +395,19 @@ def reset_db():
     except Exception as e:
         return f"Error resetting database: {str(e)}"
 
+@app.route('/api/list_volunteers')
+def list_volunteers():
+    vols = Volunteer.query.all()
+    result = []
+    for v in vols:
+        result.append({
+            'name': v.name,
+            'location': v.location,
+            'skills': v.skills,
+            'available_now': v.current_availability
+        })
+    return jsonify(result)
+
 @app.route('/api/debug_db')
 def debug_db():
     v_count = Volunteer.query.count()
@@ -404,7 +417,8 @@ def debug_db():
         'reports': r_count,
         'database_url_exists': bool(os.environ.get("DATABASE_URL")),
         'manual_seed_url': '/api/manual_seed',
-        'reset_db_url': '/api/reset_db'
+        'reset_db_url': '/api/reset_db',
+        'list_volunteers_url': '/api/list_volunteers'
     })
 
 if __name__ == '__main__':
