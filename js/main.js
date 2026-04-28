@@ -94,19 +94,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const modal = document.getElementById('aiValidationModal');
                     const content = document.getElementById('aiValidationContent');
 
+                    const suggestion = validationResult.suggestion || {};
+                    const suggestedPt = suggestion.problem_type || suggestion.problemType || currentIssuePayload.problem_type;
+                    const suggestedUrg = suggestion.urgency || currentIssuePayload.urgency;
+
                     content.innerHTML = `
                         <p class="mb-2"><strong class="color-yellow"><i class="fas fa-exclamation-triangle"></i> We noticed a potential mismatch:</strong></p>
-                        <p class="mb-2 text-muted">${validationResult.reason}</p>
+                        <p class="mb-2 text-muted">${validationResult.reason || 'The AI suggested an alternative based on your description.'}</p>
                         <div class="glass-mini-card p-2">
-                            <p><strong>Suggested Problem Type:</strong> ${validationResult.suggestion.problem_type}</p>
-                            <p><strong>Suggested Urgency:</strong> <span class="capitalize">${validationResult.suggestion.urgency}</span></p>
+                            <p><strong>Suggested Problem Type:</strong> ${suggestedPt}</p>
+                            <p><strong>Suggested Urgency:</strong> <span class="capitalize">${suggestedUrg}</span></p>
                         </div>
                     `;
 
                     window.suggestedPayload = {
                         ...currentIssuePayload,
-                        problem_type: validationResult.suggestion.problem_type,
-                        urgency: validationResult.suggestion.urgency
+                        problem_type: suggestedPt,
+                        urgency: suggestedUrg
                     };
 
                     modal.classList.remove('hidden');
@@ -483,7 +487,8 @@ function addIssueToSidebar(payload, matchedVolunteer) {
     }
 
     const li = document.createElement('li');
-    li.innerHTML = `<div class="dot ${color}"></div> ${payload.problem_type} <span class="loc">(${payload.location})</span>`;
+    const displayPt = payload.problem_type || payload.problemType || "General Emergency";
+    li.innerHTML = `<div class="dot ${color}"></div> ${displayPt} <span class="loc">(${payload.location})</span>`;
 
     if (matchedVolunteer) {
         // Add to resolved list
@@ -577,7 +582,9 @@ function simulateAutoAssign(matchedVolunteer, payload, liElement) {
                     const vols = Array.isArray(matchedVolunteer) ? matchedVolunteer : [matchedVolunteer];
                     const volNames = vols.map(v => v.name).join(', ');
                     // Update dot to green and append volunteer name
-                    liElement.innerHTML = `<div class="dot green"></div> ${payload.problem_type} <span class="loc">(${payload.location})</span> <span class="text-xs" style="color: var(--color-green);"> - Assigned to ${volNames}</span>`;
+                    const displayProblem = payload.problem_type || payload.problemType || "General Emergency";
+                    const displayLocation = payload.location || "Unknown Location";
+                    liElement.innerHTML = `<div class="dot green"></div> ${displayProblem} <span class="loc">(${displayLocation})</span> <span class="text-xs" style="color: var(--color-green);"> - Assigned to ${volNames}</span>`;
                     resolvedList.insertBefore(liElement, resolvedList.firstChild);
                 }
             }
