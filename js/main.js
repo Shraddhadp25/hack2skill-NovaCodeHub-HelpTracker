@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const urg = (r.urgency || '').toLowerCase();
                 if (urg === 'critical' || urg === 'high') criticalCount++;
                 else if (urg === 'medium') mediumCount++;
-                else lowCount++;
+                else if (urg === 'low') lowCount++;
             });
 
             const elCritical = document.getElementById('countCritical');
@@ -470,14 +470,14 @@ function addIssueToSidebar(payload, matchedVolunteer) {
     if (urg === 'critical' || urg === 'high') {
         color = 'red';
         const el = document.getElementById('countCritical');
-        if (el) el.textContent = parseInt(el.textContent || '0') + 1;
+        if (el) el.textContent = (parseInt(el.textContent) || 0) + 1;
     } else if (urg === 'medium') {
         color = 'yellow';
         const el = document.getElementById('countMedium');
-        if (el) el.textContent = parseInt(el.textContent || '0') + 1;
-    } else {
+        if (el) el.textContent = (parseInt(el.textContent) || 0) + 1;
+    } else if (urg === 'low') {
         const el = document.getElementById('countLow');
-        if (el) el.textContent = parseInt(el.textContent || '0') + 1;
+        if (el) el.textContent = (parseInt(el.textContent) || 0) + 1;
     }
 
     const li = document.createElement('li');
