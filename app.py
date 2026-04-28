@@ -322,6 +322,40 @@ def seed_data():
                         ))
             db.session.commit()
 
+# --- MANUAL DATABASE SEEDING (FORCED) ---
+@app.route('/api/manual_seed')
+def manual_seed():
+    volunteers_to_add = [
+        {"name": "Rahul Sharma", "skills": "First Aid | Rescue", "location": "Andheri"},
+        {"name": "Anish Patel", "skills": "Doctor", "location": "Bandra"},
+        {"name": "Priya Mehta", "skills": "Transport | Logistics", "location": "Bandra"},
+        {"name": "Amit Kumar", "skills": "Medical Doctor", "location": "Kurla"},
+        {"name": "Sneha Desai", "skills": "Water Management", "location": "Dadar"},
+        {"name": "Vikas Singh", "skills": "Heavy Machinery | Rescue", "location": "Borivali"},
+        {"name": "Neha Gupta", "skills": "Food Distribution", "location": "Juhu"},
+        {"name": "Rohan Patil", "skills": "First Aid", "location": "Kandivali"},
+        {"name": "Vikram Joshi", "skills": "Rescue | Swimming", "location": "Colaba"},
+        {"name": "Pooja Nair", "skills": "Medical Nurse", "location": "Powai"},
+        {"name": "Sanjay Verma", "skills": "Logistics", "location": "Sion"},
+        {"name": "Shraddha Pawar", "skills": "Water Department Official", "location": "Dadar"}
+    ]
+    
+    count = 0
+    for v_data in volunteers_to_add:
+        if not Volunteer.query.filter_by(name=v_data['name']).first():
+            new_v = Volunteer(
+                name=v_data['name'],
+                skills=v_data['skills'],
+                location=v_data['location'],
+                availability="Anytime",
+                current_availability="yes"
+            )
+            db.session.add(new_v)
+            count += 1
+    
+    db.session.commit()
+    return f"Successfully added {count} volunteers to the database!"
+
 @app.route('/api/debug_db')
 def debug_db():
     v_count = Volunteer.query.count()
@@ -330,9 +364,7 @@ def debug_db():
         'volunteers': v_count,
         'reports': r_count,
         'database_url_exists': bool(os.environ.get("DATABASE_URL")),
-        'volunteer_csv_exists': os.path.exists('Volunteer.csv'),
-        'report_csv_exists': os.path.exists('Report.csv'),
-        'current_directory_files': os.listdir('.')
+        'manual_seed_url': '/api/manual_seed'
     })
 
 if __name__ == '__main__':
