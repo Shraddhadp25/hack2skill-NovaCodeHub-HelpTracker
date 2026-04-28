@@ -241,14 +241,22 @@ Format your response exactly like this:
 3. [Your answer here]
 4. [Your answer here]
 """
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash')
-        response = model.generate_content(prompt)
-        return jsonify({'summary': response.text}), 200
-    except Exception as e:
-        return jsonify({'error': f"Failed to generate summary: {str(e)}"}), 500
+    # Try multiple models until one works to avoid 404 errors during demo
+    models_to_try = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
+    
+    for model_name in models_to_try:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return jsonify({'summary': response.text}), 200
+        except Exception as e:
+            if "404" in str(e) and model_name != models_to_try[-1]:
+                continue # Try next model
+            return jsonify({'error': f"Failed with {model_name}: {str(e)}"}), 500
+    
+    return jsonify({'error': "All models failed"}), 500
 
 @app.route('/api/validate_issue', methods=['POST'])
 def validate_issue():
@@ -283,20 +291,28 @@ def validate_issue():
       "reason": "precise explanation"
     }}
     """
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash')
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json"
+    # Try multiple models until one works to avoid 404 errors during demo
+    models_to_try = ['gemini-3-flash', 'gemini-1.5-flash', 'gemini-pro']
+    
+    for model_name in models_to_try:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json"
+                )
             )
-        )
-        result = json.loads(response.text)
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"isValid": True}), 200
+            result = json.loads(response.text)
+            return jsonify(result), 200
+        except Exception as e:
+            if "404" in str(e) and model_name != models_to_try[-1]:
+                continue # Try next model
+            return jsonify({"isValid": True}), 200
+    
+    return jsonify({"isValid": True}), 200
 
 # --- DATA SEEDING (Robust transfer for Render) ---
 def seed_data():
