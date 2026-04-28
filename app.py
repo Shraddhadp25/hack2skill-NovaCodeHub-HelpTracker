@@ -243,19 +243,11 @@ Format your response exactly like this:
 4. [Your answer here]
 """
     try:
-        import requests
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
-        res = requests.post(url, json=payload)
-        res_data = res.json()
-        
-        if 'candidates' in res_data:
-            summary_text = res_data['candidates'][0]['content']['parts'][0]['text']
-            return jsonify({'summary': summary_text}), 200
-        else:
-            return jsonify({'error': str(res_data)}), 500
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return jsonify({'summary': response.text}), 200
     except Exception as e:
         return jsonify({'error': f"Failed to generate summary: {str(e)}"}), 500
 
@@ -293,23 +285,17 @@ def validate_issue():
     }}
     """
     try:
-        import requests
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "response_mime_type": "application/json"
-            }
-        }
-        res = requests.post(url, json=payload)
-        res_data = res.json()
-        
-        if 'candidates' in res_data:
-            content = res_data['candidates'][0]['content']['parts'][0]['text']
-            result = json.loads(content)
-            return jsonify(result), 200
-        else:
-            return jsonify({"isValid": True}), 200
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+        result = json.loads(response.text)
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({"isValid": True}), 200
 
