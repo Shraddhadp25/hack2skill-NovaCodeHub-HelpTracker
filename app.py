@@ -340,7 +340,19 @@ def manual_seed():
         {"name": "Shraddha Pawar", "skills": "Water Department Official", "location": "Dadar"}
     ]
     
-    count = 0
+    reports_to_add = [
+        {"location": "Bandra", "problem_type": "Medical", "urgency": "critical", "description": "Person injured in road accident and needs immediate ambulance", "timestamp": "2026-04-17T09:15:00Z"},
+        {"location": "Colaba", "problem_type": "Medical", "urgency": "critical", "description": "Heart attack suspected immediate help required", "timestamp": "2026-04-17T14:05:00Z"},
+        {"location": "Kurla", "problem_type": "Flood", "urgency": "critical", "description": "Water logging severe at main station", "timestamp": "2026-04-17T09:00:00Z"},
+        {"location": "Colaba", "problem_type": "Flood", "urgency": "critical", "description": "Flooding at gateway", "timestamp": "2026-04-17T14:14:31Z"},
+        {"location": "Andheri", "problem_type": "Fire", "urgency": "critical", "description": "Fire breakout in commercial building", "timestamp": "2026-04-17T10:30:00Z"},
+        {"location": "Andheri", "problem_type": "Fire", "urgency": "critical", "description": "Small explosion heard near factory", "timestamp": "2026-04-17T14:50:00Z"},
+        {"location": "Borivali", "problem_type": "Medical", "urgency": "medium", "description": "Elderly person feeling dizzy need checkup", "timestamp": "2026-04-17T11:00:00Z"},
+        {"location": "Dadar", "problem_type": "Water Shortage", "urgency": "medium", "description": "No drinking water in residential complex for 2 days", "timestamp": "2026-04-17T10:05:00Z"},
+        {"location": "Dadar", "problem_type": "Water Shortage", "urgency": "medium", "description": "Tankers requested for neighborhood", "timestamp": "2026-04-17T15:30:00Z"}
+    ]
+    
+    v_count = 0
     for v_data in volunteers_to_add:
         if not Volunteer.query.filter_by(name=v_data['name']).first():
             new_v = Volunteer(
@@ -351,10 +363,23 @@ def manual_seed():
                 current_availability="yes"
             )
             db.session.add(new_v)
-            count += 1
+            v_count += 1
+            
+    r_count = 0
+    for r_data in reports_to_add:
+        if not Report.query.filter_by(description=r_data['description'], timestamp=r_data['timestamp']).first():
+            new_r = Report(
+                location=r_data['location'],
+                problem_type=r_data['problem_type'],
+                urgency=r_data['urgency'],
+                description=r_data['description'],
+                timestamp=r_data['timestamp']
+            )
+            db.session.add(new_r)
+            r_count += 1
     
     db.session.commit()
-    return f"Successfully added {count} volunteers to the database!"
+    return f"Manual Seed Complete: Added {v_count} volunteers and {r_count} reports!"
 
 @app.route('/api/reset_db')
 def reset_db():
