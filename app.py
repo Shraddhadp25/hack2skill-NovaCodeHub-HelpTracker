@@ -281,46 +281,46 @@ def validate_issue():
 # --- DATA SEEDING (Robust transfer for Render) ---
 def seed_data():
     with app.app_context():
-        # Check if we need to seed
-        v_count = Volunteer.query.count()
-        r_count = Report.query.count()
-        
-        print(f"DEBUG: Current DB Status - Volunteers: {v_count}, Reports: {r_count}")
-        
-        if v_count == 0:
-            vol_csv = 'Volunteer.csv'
-            if os.path.exists(vol_csv):
-                print(f"DEBUG: Seeding volunteers from {vol_csv}...")
-                with open(vol_csv, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
+        # Clean Seed Volunteers
+        vol_csv = 'Volunteer.csv'
+        if os.path.exists(vol_csv):
+            with open(vol_csv, 'r', encoding='utf-8-sig') as f: # -sig handles BOM
+                reader = csv.DictReader(f)
+                # Clean headers (remove spaces/quotes)
+                reader.fieldnames = [name.strip() for name in reader.fieldnames]
+                
+                for row in reader:
+                    name = row.get('Name')
+                    if name and not Volunteer.query.filter_by(name=name).first():
                         db.session.add(Volunteer(
-                            name=row.get('Name'),
+                            name=name,
                             skills=row.get('Skills'),
                             location=row.get('Location'),
                             availability=row.get('Availability'),
-                            current_availability='yes' # Force 'yes' for fresh seed
+                            current_availability='yes'
                         ))
-                db.session.commit()
-                print("DEBUG: Volunteer seeding complete.")
+            db.session.commit()
         
-        if r_count == 0:
-            rep_csv = 'Report.csv'
-            if os.path.exists(rep_csv):
-                print(f"DEBUG: Seeding reports from {rep_csv}...")
-                with open(rep_csv, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
+        # Clean Seed Reports
+        rep_csv = 'Report.csv'
+        if os.path.exists(rep_csv):
+            with open(rep_csv, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                reader.fieldnames = [name.strip() for name in reader.fieldnames]
+                
+                for row in reader:
+                    desc = row.get('description')
+                    # Use description + timestamp as a unique check
+                    if desc and not Report.query.filter_by(description=desc, timestamp=row.get('Timestamp')).first():
                         db.session.add(Report(
                             location=row.get('Location'),
                             problem_type=row.get('Problem type'),
                             urgency=row.get('Urgency'),
-                            description=row.get('description'),
+                            description=desc,
                             timestamp=row.get('Timestamp'),
                             matched_volunteer=row.get('Matched Volunteer', '')
                         ))
-                db.session.commit()
-                print("DEBUG: Report seeding complete.")
+            db.session.commit()
 
 @app.route('/api/debug_db')
 def debug_db():
