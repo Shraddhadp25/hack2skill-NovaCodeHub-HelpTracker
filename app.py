@@ -356,6 +356,20 @@ def manual_seed():
     db.session.commit()
     return f"Successfully added {count} volunteers to the database!"
 
+@app.route('/api/reset_db')
+def reset_db():
+    try:
+        # Delete all reports
+        Report.query.delete()
+        # Reset all volunteers to available
+        volunteers = Volunteer.query.all()
+        for v in volunteers:
+            v.current_availability = 'yes'
+        db.session.commit()
+        return "Database Reset! All reports cleared and volunteers are now available."
+    except Exception as e:
+        return f"Error resetting database: {str(e)}"
+
 @app.route('/api/debug_db')
 def debug_db():
     v_count = Volunteer.query.count()
@@ -364,7 +378,8 @@ def debug_db():
         'volunteers': v_count,
         'reports': r_count,
         'database_url_exists': bool(os.environ.get("DATABASE_URL")),
-        'manual_seed_url': '/api/manual_seed'
+        'manual_seed_url': '/api/manual_seed',
+        'reset_db_url': '/api/reset_db'
     })
 
 if __name__ == '__main__':
