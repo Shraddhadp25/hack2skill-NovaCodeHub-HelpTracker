@@ -408,6 +408,22 @@ def list_volunteers():
         })
     return jsonify(result)
 
+@app.route('/api/toggle_volunteer')
+def toggle_volunteer():
+    name = request.args.get('name')
+    status = request.args.get('status', 'yes').lower()
+    
+    if not name:
+        return "Error: Please provide a name (e.g., ?name=Rahul Sharma)", 400
+        
+    vol = Volunteer.query.filter_by(name=name).first()
+    if vol:
+        vol.current_availability = status
+        db.session.commit()
+        return f"Successfully updated {name} to {status}!"
+    else:
+        return f"Error: Volunteer '{name}' not found in database.", 404
+
 @app.route('/api/debug_db')
 def debug_db():
     v_count = Volunteer.query.count()
