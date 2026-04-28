@@ -267,13 +267,28 @@ def validate_issue():
     Urgency selected: "{urgency}"
 
     Validate if the Problem Type and Urgency match the severity and nature of the description. 
-    Respond with ONLY a strict JSON object (isValid, suggestion, reason).
+    - If the user's description clearly matches a DIFFERENT problem type than the one they selected, you MUST set "isValid" to false and suggest the correct one.
+    - If the user's description indicates a life-threatening or immediate emergency but they selected "Low" or "Medium" urgency, you MUST set "isValid" to false and suggest "Critical".
+    - Similarly, if the description is minor but they selected "Critical", suggest a lower urgency level.
+    
+    Respond with ONLY a strict JSON object in this format:
+    {
+      "isValid": boolean,
+      "suggestion": {
+        "problem_type": "string (medical/fire/flood/water/food/other)",
+        "urgency": "string (critical/medium/low)"
+      },
+      "reason": "Explain precisely why you are suggesting a change or why the original is correct."
+    }
     """
     try:
         client = genai.Client()
-        response = client.models.generate_content(model='gemini-flash-latest', contents=prompt)
-        content = response.text.replace('```json', '').replace('```', '').strip()
-        result = json.loads(content)
+        response = client.models.generate_content(
+            model='gemini-flash-latest', 
+            contents=prompt,
+            config={'response_mime_type': 'application/json'}
+        )
+        result = json.loads(response.text)
         return jsonify(result), 200
     except Exception as e:
         return jsonify({"isValid": True}), 200
