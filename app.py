@@ -2,12 +2,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import os
+import json
+import csv
 from collections import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
-from google import genai
-import json
-import csv
 
 load_dotenv()
 
@@ -463,9 +462,7 @@ def debug_db():
     })
 
 if __name__ == '__main__':
-    seed_data()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-    seed_data()
+    with app.app_context():
+        seed_data()
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
