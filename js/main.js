@@ -337,6 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const pendingList = document.getElementById('pendingIssuesList');
             const resolvedList = document.getElementById('resolvedIssuesList');
 
+            // Clear static pending items so we show exactly 5 from database
+            if (pendingList) pendingList.innerHTML = '';
+
             let criticalCount = 0, mediumCount = 0, lowCount = 0;
             reports.forEach(r => {
                 const urg = (r.urgency || '').toLowerCase();
@@ -353,39 +356,38 @@ document.addEventListener('DOMContentLoaded', () => {
             if (elMedium) elMedium.textContent = mediumCount;
             if (elLow) elLow.textContent = lowCount;
 
-            // Sort reports by timestamp (newest first)
-            if (reports.length > 0) {
+            // Sort and filter for the 5 most recent Pending issues specifically
+            if (reports && reports.length > 0) {
                 reports.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             }
 
-            // Take recent 5
-            const recentReports = reports.slice(0, 5);
+            const pendingReports = reports.filter(r => !r.matched_volunteer).slice(0, 5);
+            const resolvedReports = reports.filter(r => r.matched_volunteer);
 
             if (window.appMapLayerGroup) {
                 window.appMapLayerGroup.clearLayers();
             }
 
-            // Sort reports so we can insert them at the top correctly
-            // We iterate through recent reports and use insertBefore(firstChild)
-            // To keep the newest at the very top, we process from oldest to newest in this slice
-            recentReports.reverse().forEach(report => {
+            // Populate Pending List (5 most recent)
+            pendingReports.reverse().forEach(report => {
                 window.addMarkerToMap(report);
-
                 let color = 'green';
                 if (report.urgency === 'critical' || report.urgency === 'high') color = 'red';
                 else if (report.urgency === 'medium') color = 'yellow';
 
                 const li = document.createElement('li');
+                li.innerHTML = `<div class="dot ${color}"></div> ${report.problem_type} <span class="loc">(${report.location})</span>`;
+                if (pendingList) pendingList.insertBefore(li, pendingList.firstChild);
+            });
 
-                if (report.matched_volunteer && (Array.isArray(report.matched_volunteer) ? report.matched_volunteer.length > 0 : true)) {
-                    const vols = Array.isArray(report.matched_volunteer) ? report.matched_volunteer : [report.matched_volunteer];
-                    const volNames = vols.map(v => v.name).join(', ');
-                    li.innerHTML = `<div class="dot green"></div> ${report.problem_type} <span class="loc">(${report.location})</span> <span class="text-xs" style="color: var(--color-green);"> - Assigned to ${volNames}</span>`;
-                    if (resolvedList) resolvedList.insertBefore(li, resolvedList.firstChild);
-                } else {
-                    li.innerHTML = `<div class="dot ${color}"></div> ${report.problem_type} <span class="loc">(${report.location})</span>`;
-                    if (pendingList) pendingList.insertBefore(li, pendingList.firstChild);
-                }
+            // Populate Resolved List (All database items)
+            resolvedReports.reverse().forEach(report => {
+                window.addMarkerToMap(report);
+                const li = document.createElement('li');
+                const vols = Array.isArray(report.matched_volunteer) ? report.matched_volunteer : [report.matched_volunteer];
+                const volNames = vols.map(v => v.name).join(', ');
+                li.innerHTML = `<div class="dot green"></div> ${report.problem_type} <span class="loc">(${report.location})</span> <span class="text-xs" style="color: var(--color-green);"> - Assigned to ${volNames}</span>`;
+                if (resolvedList) resolvedList.insertBefore(li, resolvedList.firstChild);
             });
         } catch (e) {
             console.error("Error loading reports", e);
@@ -490,7 +492,13 @@ function addIssueToSidebar(payload, matchedVolunteer) {
     } else {
         // Add to pending list
         const list = document.getElementById('pendingIssuesList');
-        if (list) list.insertBefore(li, list.firstChild);
+        if (list) {
+            list.insertBefore(li, list.firstChild);
+            // Limit to 5 items in Pending Section
+            while (list.children.length > 5) {
+                list.removeChild(list.lastChild);
+            }
+        }
     }
     return li;
 }
