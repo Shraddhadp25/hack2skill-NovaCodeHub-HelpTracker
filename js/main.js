@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok) {
                     throw new Error(data.error || 'Failed to fetch AI summary');
                 }
-                
+
                 let summaryText = data.summary;
                 if (summaryText.includes('AI_REC_MARKER')) {
                     summaryText = summaryText.replace('AI_REC_MARKER', '<div class="glass-mini-card" style="border-left: 3px solid var(--color-yellow); margin-top: 10px; background: rgba(255, 193, 7, 0.1);"><strong class="color-yellow"><i class="fas fa-lightbulb"></i> AI Recommendation:</strong><br/>');
