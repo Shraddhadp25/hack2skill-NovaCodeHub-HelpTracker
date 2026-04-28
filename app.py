@@ -329,7 +329,10 @@ def debug_db():
     return jsonify({
         'volunteers': v_count,
         'reports': r_count,
-        'database_url_exists': bool(os.environ.get("DATABASE_URL"))
+        'database_url_exists': bool(os.environ.get("DATABASE_URL")),
+        'volunteer_csv_exists': os.path.exists('Volunteer.csv'),
+        'report_csv_exists': os.path.exists('Report.csv'),
+        'current_directory_files': os.listdir('.')
     })
 
 if __name__ == '__main__':
